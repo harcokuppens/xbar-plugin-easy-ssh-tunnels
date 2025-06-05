@@ -70,21 +70,16 @@ toggle_tunnel() {
         # run tunnel command
         #  - in background because tunnel keeps running (tunnel cmd does not return)
         #  - using nohup to keep tunnel alive if this launch script ends quickly for responsive menu
-        if [[ -z "$EXPECT_WRAPPER" ]]; then
-            echo "running cmd: nohup  $COMMAND_STRING'"
-            eval "nohup  $COMMAND_STRING" &
+        #  - EXPECT_WRAPPER can be empty, if no expect wrapper is used
+        echo "running cmd: '$EXPECT_WRAPPER nohup  $COMMAND_STRING'"
 
-        else
-            echo "running cmd: '$EXPECT_WRAPPER nohup  $COMMAND_STRING"
+        # using internal log_wrapper to log output of tunnel command
+        # IMPORTANT: fflush() is used to ensure that the output is written immediately to the log file
+        FILTER='gawk "{ print strftime(\"%Y-%m-%d %H:%M:%S\"), \"tunnel_cmd: \", \$0; fflush() }"'
+        eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\"  '" &
 
-            # using internal log_wrapper to log output of tunnel command
-            # IMPORTANT: fflush() is used to ensure that the output is written immediately to the log file
-            FILTER='gawk "{ print strftime(\"%Y-%m-%d %H:%M:%S\"), \"tunnel_cmd: \", \$0; fflush() }"'
-            eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\"  '" &
-
-            # using external log_wrapper to log output of tunnel command
-            #eval "$EXPECT_WRAPPER  nohup  log_wrapper '$COMMAND_STRING' '$LOGFILE' 'tunnel_cmd' " &
-        fi
+        # using external log_wrapper to log output of tunnel command
+        #eval "$EXPECT_WRAPPER  nohup  log_wrapper '$COMMAND_STRING' '$LOGFILE' 'tunnel_cmd' " &
 
         # wait for port of tunnel is active, so that we can updating the menu to show tunnel is active
         wait_for_tunnel_started "$PORT"
