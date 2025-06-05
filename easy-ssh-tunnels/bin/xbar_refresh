@@ -1,0 +1,3 @@
+#!/bin/bash
+
+open xbar://app.xbarapp.com/refreshPlugin?path=easy-ssh-tunnels.30s.sh

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+CMD="$1"
+LOGFILE="$2"
+PREFIX="$3"
+AWK_SCRIPT_STDOUT='{ print strftime("%Y-%m-%d %H:%M:%S"), "[stdout] '"$PREFIX"': ", $0; fflush() }'
+AWK_SCRIPT_STDERR='{ print strftime("%Y-%m-%d %H:%M:%S"), "[stderr] '"$PREFIX"': ", $0; fflush() }'
+#eval "$CMD" > >(gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "[stdout] $PREFIX ", $0; fflush() }' >>"$LOGFILE") 2> >(gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "[stderr] $PREFIX ", $0; fflush() }' >>"$LOGFILE")
+eval "$CMD" > >(gawk "$AWK_SCRIPT_STDOUT" >>"$LOGFILE") 2> >(gawk "$AWK_SCRIPT_STDERR" >>"$LOGFILE")

@@ -1,0 +1,159 @@
+#!/bin/bash
+
+# example: bridge firewall from home to RPD server on cup via lilo as bridge
+#   sshbridge 13389 lilo.science.ru.nl cup.cs.ru.nl 3389
+#   sshbridge 3389 lilo.science.ru.nl cup.cs.ru.nl
+#   sshbridge 3389 lilo7.science.ru.nl lilo8.science.ru.nl cup.cs.ru.nl
+
+readonly USAGE="USAGE 
+  sshbridge [-f] LOCALPORT  [SSHHOST_1 ... SSHHOST_N-2] SSHHOST_N REMOTESERVER [REMOTEPORT]       
+
+WHERE
+  Each SSHHOST_X can be specified as: [USER_X@]SSHSERVER_X[:SSHPORT_X]
+  If REMOTEPORT is not given, then REMOTEPORT=LOCALPORT.
+  The option -f runs the ssh command in the background.
+
+  For more information run: sshtunnel -h"
+
+readonly HELP="NAME 
+  sshbridge - Use SSH to bridge TCP traffic over a firewall.
+
+$USAGE
+
+DESCRIPTION
+  Use SSH to bridge TCP traffic over a firewall.
+  We can have multiple SSH hosts to do multiple firewall bridging.
+  Although normally you would need only one.
+
+  The encrypted SSH-tunnel is created to SSHHOST_1, which extends the SSHtunnel to SSHHOST_2, ... to SSHHOST_N.
+  From the last SSHHOST_N all traffic is forwarded over a none-encrypted connection to REMOTEHOST:REMOTEPORT
+
+  It executes the following ssh command:
+
+         ssh [-f] -N -T [-J SSHHOST_1,SSHHOST_2,...SSHHOST_N-1]  -L LOCALPORT:REMOTESERVER:REMOTEPORT SSHHOST_N     
+                              
+  All traffic comes from the outside world into REMOTESERVER on port REMOTEPORT
+  where REMOTESERVER does not have to run a SSH server.
+
+EXAMPLE 
+  Bridge RDP traffic to an RDP server behind a firewall with
+  the help of a SSH bridge server open to the outside world 'eg. lilo.science.ru.nl' 
+  Note that the RDP protocol supports encryption by itself, so only
+  passing the firewall using an SSH bridge server is needed. 
+   
+    # bridge local port 3389 via lilo.science.ru.nl bridge to RDPSERVER (on same port)
+    sshbridge 3389 lilo.science.ru.nl RDPSERVER 
+    # executes: ssh -N -L 3389:RDPSERVER:3389 lilo.science.ru.nl  
+    # bridge local port 13389 via lilo.science.ru.nl bridge to port 3389 on the RDPSERVER
+    sshbridge 13389 lilo.science.ru.nl RDPSERVER 3389
+    # executes: ssh -N -L 13389:RDPSERVER:3389 lilo.science.ru.nl
+
+  Note, if you want guaranteed end-to-end encryption then you can just change
+  the command  'sshbridge' to 'sshtunnel', but you must enable a SSH
+  server on the endpoint server 'RDPSERVER', otherwise the SSH tunnel
+  cannot be made all the way:
+
+    sshtunnel 13389 lilo.science.ru.nl RDPSERVER 3389
+    # RDPSERVER runs also an SSH server
+         
+"
+
+sshbridge() {
+    if [[ "$1" == "-h" ]]; then
+        echo "$HELP"
+        exit 0
+    fi
+
+    BACKGROUND_OPTION=""
+    if [[ "$1" == "-f" ]]; then
+        shift
+        BACKGROUND_OPTION="-f"
+    fi
+
+    # check minimal number of arguments are provided
+    if [[ "$#" -lt "3" ]]; then
+        echo "$USAGE"
+        exit 0
+    fi
+
+    # check LOCALPORT
+    readonly LOCALPORT="$1"
+    shift
+    if ! [[ $LOCALPORT =~ ^-?[0-9]+$ ]]; then
+        echo "ERROR: first argument must be a TCP port"
+        echo "$USAGE"
+        exit 0
+    fi
+
+    # remaining args: [SSHHOST_1 ... SSHHOST_N-2] SSHHOST_N REMOTESERVER [REMOTEPORT]
+    # we have optionally as last argument  a REMOTEPORT
+    readonly LAST_ARG="${@: -1}"
+    if [[ $LAST_ARG =~ ^-?[0-9]+$ ]]; then
+        readonly REMOTEPORT=$LAST_ARG
+        # pop: remove last arg from $@
+        set -- "${@:1:$#-1}"
+    else
+        readonly REMOTEPORT=$LOCALPORT
+    fi
+
+    # remaining args: [SSHHOST_1 ... SSHHOST_N-2] SSHHOST_N REMOTESERVER
+    if ! [[ "$#" -ge "2" ]]; then
+        echo "$USAGE"
+        exit 0
+    fi
+    readonly REMOTESERVER="${@: -1}"
+    # pop: remove last arg from $@
+    set -- "${@:1:$#-1}"
+    readonly SSHHOST_N="${@: -1}"
+    set -- "${@:1:$#-1}"
+
+    # remaining args are SSH Hosts: [SSHHOST_1 ... SSHHOST_N-1]
+    SSHHOSTS=("$@")
+
+    # remaining SSHHOSTS used as JUMP SSH SERVERS
+    JUMPHOSTS_OPTION=""
+    if [[ "${#SSHHOSTS[@]}" -ge "1" ]]; then
+        JUMPHOSTS_OPTION="-J "
+        SEP=""
+        for SSHHOST in "${SSHHOSTS[@]}"; do
+            JUMPHOSTS_OPTION="$JUMPHOSTS_OPTION$SEP$SSHHOST"
+            SEP=","
+        done
+    fi
+    # ssh [-f] -N -T [-J SSHHOST_1,SSHHOST_2,...SSHHOST_N-1]  -L LOCALPORT:REMOTESERVER:REMOTEPORT SSHHOST_N
+    echo "executing: ssh $BACKGROUND_OPTION -N -T $JUMPHOSTS_OPTION -L $LOCALPORT:$REMOTESERVER:$REMOTEPORT $SSHHOST_N"
+    # run ssh in background so that signals send to sshbridge script are handled directly
+    # note: we run ssh process in background and make shell wait for it so that this script directly can
+    #       handle its signals. If we would run ssh in foreground then signals would be on hold by bash
+    #       until foreground process in bash is finished.  Bash will defer handling signals sent to itself
+    #       while it's waiting for a foreground child process.
+    ssh $BACKGROUND_OPTION -N -T $JUMPHOSTS_OPTION -L $LOCALPORT:$REMOTESERVER:$REMOTEPORT $SSHHOST_N &
+    SSH_PID=$!
+    wait "$SSH_PID"
+}
+
+# Define a single cleanup handler function
+# Function to handle termination signals and kill the child process
+# IMPORTANT:
+#   Key takeaway for trap and foreground children:
+#    - When a Bash script is waiting for a foreground child, signals sent to the parent script
+#      can be deferred until the child terminates or relinquishes the foreground.
+#    - Ctrl-C (SIGINT) is special because it's sent to the entire foreground process group,
+#      so the child also receives it, often terminating quickly, allowing the parent's trap to fire.
+#    - To ensure your traps on the parent script respond immediately to kill commands, you typically
+#      need to run the long-running child process in the background and use wait.
+cleanup_handler() {
+    local signal_name="$1" # The first argument will be the signal name
+    printf "\n\nsshbridge: cleanup handler called for PID: $$ due to signal: $signal_name\n"
+    printf "sshbridge: Terminating sshbridge script, killing ssh child process...\n"
+    # Kill all child processes started by this script
+    pkill -P $$
+    exit 0 # Exit after cleanup
+}
+
+# Trap termination signals, passing the signal name to the handler
+trap 'cleanup_handler SIGHUP' SIGHUP
+trap 'cleanup_handler SIGINT' SIGINT
+trap 'cleanup_handler SIGTERM' SIGTERM
+
+sshbridge "$@"

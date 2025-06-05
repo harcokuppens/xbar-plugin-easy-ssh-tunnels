@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# Get the directory of the current plugin script
+# This is crucial for portability, as xbar might execute from a different CWD
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+
+# add paths:
+#  - bin/ folder of this plugin
+#  - homebrew bin folder, because we use some homebrew utilities like gawk, oathtool
+export PATH="$PATH:$SCRIPT_DIR:/opt/homebrew/bin"
+
+LOGFILE="$SCRIPT_DIR/../log.txt"
+
+wait_for_tunnel_started() {
+    local port="$1"
+    # timeout of 30 seconds gives end user enough time to fill in all authentication dialogs
+    local timeout=30
+    local start_time=$(date +%s)
+    local current_time
+    local TUNNELPID=""
+
+    while [[ -z "$TUNNELPID" ]]; do
+        TUNNELPID=$(ssh_tunnel_get_process_id "$port")
+        if [[ -n "$TUNNELPID" ]]; then
+            echo "SSH tunnel on port $port started with PID: $TUNNELPID"
+            return 0 # Success
+        fi
+
+        current_time=$(date +%s)
+        if ((current_time - start_time >= timeout)); then
+            echo "Timeout waiting for SSH tunnel to start."
+            return 1 # Timeout
+        fi
+        sleep 0.5 # Wait a bit before retrying
+    done
+}
+
+wait_for_tunnel_stopped() {
+    local port="$1"
+    local timeout=5
+    local start_time=$(date +%s)
+    local current_time
+    local TUNNELPID="initial_value" # Initialize to a non-empty value to enter the loop
+
+    while [[ -n "$TUNNELPID" ]]; do # Loop as long as TUNNELPID is not empty
+        TUNNELPID=$(ssh_tunnel_get_process_id "$port")
+        if [[ -z "$TUNNELPID" ]]; then # Check if TUNNELPID is now empty
+            echo "SSH tunnel on port $port stopped."
+            return 0 # Success
+        fi
+
+        current_time=$(date +%s)
+        if ((current_time - start_time >= timeout)); then
+            echo "Timeout waiting for SSH tunnel to stop. PID: $TUNNELPID"
+            return 1 # Timeout
+        fi
+        sleep 0.5 # Wait a bit before retrying
+    done
+}
+
+toggle_tunnel() {
+    PORT="$1"
+    COMMAND_STRING="$2"
+    EXPECT_WRAPPER="$3"
+    #shift
+    TUNNELPID=$(ssh_tunnel_get_process_id $PORT)
+    if [[ -z "$TUNNELPID" ]]; then
+        echo "open tunnel"
+
+        # run tunnel command
+        #  - in background because tunnel keeps running (tunnel cmd does not return)
+        #  - using nohup to keep tunnel alive if this launch script ends quickly for responsive menu
+        if [[ -z "$EXPECT_WRAPPER" ]]; then
+            echo "running cmd: nohup  $COMMAND_STRING'"
+            eval "nohup  $COMMAND_STRING" &
+
+        else
+            echo "running cmd: '$EXPECT_WRAPPER nohup  $COMMAND_STRING"
+
+            #eval "$EXPECT_WRAPPER  nohup  sh -c '$COMMAND_STRING 2>&1 | sed 's/^/tunnel_cmd: /' >> \"$LOGFILE\"  '" &
+            eval "$EXPECT_WRAPPER  nohup  log_wrapper '$COMMAND_STRING' '$LOGFILE' 'tunnel_cmd' " &
+        fi
+
+        # wait for port of tunnel is active, so that we can updating the menu to show tunnel is active
+        wait_for_tunnel_started "$PORT"
+        xbar_refresh
+    else
+        echo "close tunnel"
+        echo "running cmd: kill $TUNNELPID"
+        kill "$TUNNELPID"
+        # wait for port of tunnel is inactive, so that we can updating the menu to show tunnel is inactive
+        wait_for_tunnel_stopped "$PORT"
+        xbar_refresh
+    fi
+}
+
+# run toggle_tunnel function in background
+# - using nohup to keep tunnel alive if this launch script ends quickly for responsive menu
+# - where all output is send to logfile with datetime and stdout-or-stderr prefix
+#toggle_tunnel "$@" > >(gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "[stdout] toggle_tunnel: ", $0; fflush() }' >>"$LOGFILE") 2> >(gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "[stderr] toggle_tunnel: ", $0; fflush() }' >>"$LOGFILE") &
+toggle_tunnel "$@" &

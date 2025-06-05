@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Get the directory of the current plugin script
+# This is crucial for portability, as xbar might execute from a different CWD
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+
+# add paths:
+#  - bin/ folder of this plugin
+#  - homebrew bin folder, because we use some homebrew utilities like gawk, oathtool
+export PATH="$PATH:$SCRIPT_DIR:/opt/homebrew/bin"
+
+LOGFILE="$SCRIPT_DIR/../log.txt"
+
+port="$1"
+cmd="$2"
+expect="$3"
+
+log_wrapper "toggle_tunnel '$port' '$cmd' '$expect'" "$LOGFILE" "toggle_tunnel" &

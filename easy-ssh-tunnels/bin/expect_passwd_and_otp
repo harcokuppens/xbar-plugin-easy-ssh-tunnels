@@ -1,0 +1,126 @@
+#!/usr/bin/expect --
+
+
+cd /tmp
+set timeout 5
+# Change directory to /tmp to make any created files there.. (eg. nohup.out if running command with nohup)
+
+# Uncomment for debugging:
+# set timeout -1
+# exp_internal 1
+
+# --- Default Commands ---
+# These commands will be used if no specific password or OTP generator is provided via command-line options.
+set default_passwd_generator_cmd "password_dialog"
+set default_otp_generator_cmd "dialog_otp_code"
+
+# Initialize the generator commands with their default values.
+set passwd_generator_cmd $default_passwd_generator_cmd
+set otp_generator_cmd $default_otp_generator_cmd
+set main_command {} ;# Initialize main_command as an empty list to store the command to be executed.
+
+# --- Argument Parsing ---
+# Iterate through the command-line arguments to parse options and the main command.
+set argc [llength $argv]
+set i 0
+while {$i < $argc} {
+    set arg [lindex $argv $i]
+    if {$arg eq "-p"} {
+        # If '-p' (password command) option is found, get the next argument as the password generator command.
+        incr i
+        if {$i < $argc} {
+            set passwd_generator_cmd [lindex $argv $i]
+        } else {
+            # Error if '-p' is the last argument without a value.
+            puts stderr "Error: -p option requires an argument (the password generator command)."
+            exit 1
+        }
+    } elseif {$arg eq "-o"} {
+        # If '-o' (OTP command) option is found, get the next argument as the OTP generator command.
+        incr i
+        if {$i < $argc} {
+            set otp_generator_cmd [lindex $argv $i]
+        } else {
+            # Error if '-o' is the last argument without a value.
+            puts stderr "Error: -o option requires an argument (the OTP generator command)."
+            exit 1
+        }
+    } else {
+        # If the argument is not an option flag, it marks the beginning of the main command to execute.
+        # Collect all remaining arguments into the 'main_command' list.
+        set main_command [lrange $argv $i end]
+        break ;# Exit the loop as we've found and collected the main command.
+    }
+    incr i
+}
+
+# --- Input Validation ---
+# Check if the main command to execute is provided. This is still mandatory.
+if {[llength $main_command] == 0} {
+    puts stderr "Error: No main command to execute provided."
+    puts stderr "Usage: $argv0 \[-p <passwd_cmd>\] \[-o <otp_cmd>\] <main_command_to_execute>"
+    exit 1
+}
+# --- End Input Validation ---
+
+# Print the commands that will be used for execution.
+puts "Spawning command: $main_command"
+puts "Password generator command: $passwd_generator_cmd (default: $default_passwd_generator_cmd)"
+puts "OTP generator command: $otp_generator_cmd (default: $default_otp_generator_cmd)"
+
+# Execute the main command.
+eval spawn  $main_command
+
+# Expect block to handle prompts.
+expect {
+    "Password:" {
+        puts "Password prompt detected. Executing password 'generator' command... "
+        # Execute the Password generator command and capture its output.
+        # Use 'catch' to handle potential errors during the command execution.
+        set passwd_result ""
+        if {[catch {exec $passwd_generator_cmd} passwd_result]} {
+            puts stderr "Error executing Password generator command '$passwd_generator_cmd': $passwd_result"
+            exit 1
+        }
+        puts "Password obtained. Sending..."
+        send "$passwd_result\r"
+        puts "Password sent."
+        exp_continue
+        # Continue waiting for the next prompt, potentially the 2FA token
+    }
+    "2FA token:" {
+        puts "2FA token prompt detected. Executing OTP generator command..."
+        # Execute the OTP generator command and capture its output.
+        # Use 'catch' to handle potential errors during the OTP command execution.
+        set otp_code_result ""
+        if {[catch {exec $otp_generator_cmd} otp_code_result]} {
+            puts stderr "Error executing OTP generator command '$otp_generator_cmd': $otp_code_result"
+            exit 1
+        }
+
+        # Trim any leading/trailing whitespace (like newlines) from the OTP code.
+        regsub -all {[\r\n\t ]} $otp_code_result "" otp_code_trimmed
+
+        if {$otp_code_trimmed eq ""} {
+            puts stderr "Error: OTP generator command returned an empty or whitespace-only string."
+            exit 1
+        }
+
+        puts "OTP obtained. Sending..."
+        send "$otp_code_trimmed\r"
+        puts "OTP sent."
+
+    }
+    timeout {
+        puts stderr "Error: Timeout waiting for authentication prompt."
+        exit 1
+    }
+    eof {
+        puts stderr "Error: connection closed unexpectedly before authentication prompt."
+        exit 1
+    }
+}
+
+
+# The expect script passes back raw interaction to the wrapped command.
+interact
