@@ -11,7 +11,7 @@ set timeout 5
 
 # --- Default Commands ---
 # These commands will be used if no specific password or OTP generator is provided via command-line options.
-set default_passwd_generator_cmd "password_dialog"
+set default_passwd_generator_cmd "dialog_password"
 set default_otp_generator_cmd "dialog_otp_code"
 
 # Initialize the generator commands with their default values.

@@ -19,7 +19,8 @@ export PATH="$PATH:$SCRIPT_DIR/easy-ssh-tunnels/bin:/opt/homebrew/bin"
 
 GET_TUNNEL_PID="ssh_tunnel_get_process_id"
 # absolute paths of commands used in menu
-TOGGLE_TUNNEL="$SCRIPT_DIR/easy-ssh-tunnels/bin/logged_toggle_tunnel"
+TOGGLE_TUNNEL="$SCRIPT_DIR/easy-ssh-tunnels/bin/toggle_tunnel"
+#TOGGLE_TUNNEL="$SCRIPT_DIR/easy-ssh-tunnels/bin/logged_toggle_tunnel"
 
 #------------------------
 # load config
@@ -69,7 +70,6 @@ done
 output_menu_items() {
     # Loop over the keys (PORT numbers) of the TUNNEL_COMMANDS array to display menu items in xbar
     TYPE="$1" # The type of tunnel (e.g., "Local Forwards", "Proxy Forwards")
-    MENU_SPACE="\xe2\x80\x8a"
     for PORT in "${!TUNNEL_COMMANDS[@]}"; do
         # Check if the port matches the type of tunnel we are displaying
         if [[ "${TUNNEL_TYPE[$PORT]}" != "$TYPE" ]]; then
@@ -90,13 +90,10 @@ output_menu_items() {
             TUNNELINFO=""
         fi
         # output menu item
-        #echo "$MENU_SPACE $TUNNELICON $PORT $TUNNEL_LABEL $TUNNELINFO | shell='$TOGGLE_TUNNEL' param1='$PORT' param2='$TUNNEL_COMMAND' param3='$TUNNEL_EXPECT_WRAPPER' terminal=false  "
         echo " $TUNNELICON $PORT $TUNNEL_LABEL $TUNNELINFO | shell='$TOGGLE_TUNNEL' param1='$PORT' param2='$TUNNEL_COMMAND' param3='$TUNNEL_EXPECT_WRAPPER' terminal=false trim=false "
-
         # note: no 'refresh=true' on menu, because TOGGLE_TUNNEL command must detach with nohup to keep its ssh process running,
         #       and therefore returns before tunnel setup is done. Instead the detached TOGGLE_TUNNEL command does call xbar_refresh,
         #       when tunnel is running.
-        #echo "$MENU_SPACE $TUNNELICON $PORT $TUNNEL_LABEL $TUNNELINFO | shell='$SCRIPT_DIR/easy-ssh-tunnels/bin/toggle_tunnel' param1='$PORT' param2='$TUNNEL_COMMAND' param3='$TUNNEL_EXPECT_WRAPPER' terminal=false refresh=true "
     done
 }
 
