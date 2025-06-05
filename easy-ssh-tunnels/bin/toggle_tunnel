@@ -77,52 +77,12 @@ toggle_tunnel() {
         else
             echo "running cmd: '$EXPECT_WRAPPER nohup  $COMMAND_STRING"
 
-            echo "test stderr" 1>&2
-            # by adding pipe we are loosing output of cmd
-            #eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING  | ts '[%Y-%m-%d %H:%M:%S]' >> \"$LOGFILE\" 2>&1 ' " &
-
-            #SED_FILTER='sed -u "s/^/$(date \"+%Y-%m-%d %H:%M:%S\" ) tunnel_cmd: /"'  # NO
-            #SED_FILTER='sed -u "s/^/$(date +%Y-%m-%d_%H:%M:%S ) tunnel_cmd: /"' # YES
-
-            # works but time is interpreted at the time of script execution, not at the time of output
-            #SED_FILTER='sed -u "s/^/$(date +%Y-%m-%d\ %H:%M:%S ) tunnel_cmd: /"'
-            #eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING 2>&1 | $SED_FILTER >> \"$LOGFILE\"  '" &
-
-            # FILTER='while IFS= read -r line; do echo "$(date +%Y-%m-%d\ %H:%M:%S)  tunnel_cmd: $line" done'
-            # eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\"  '" &
-
-            # GOOD 1
+            # using internal log_wrapper to log output of tunnel command
+            # IMPORTANT: fflush() is used to ensure that the output is written immediately to the log file
             FILTER='gawk "{ print strftime(\"%Y-%m-%d %H:%M:%S\"), \"tunnel_cmd: \", \$0; fflush() }"'
-            #  gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "toggle_tunnel: ", $0; fflush() }'
-
-            #FILTER='perl -MPOSIX -pe '\''BEGIN { $|=1 } print strftime("%Y-%m-%d %H:%M:%S ", localtime) . "toggle_tunnel: ";'\''
-
-            #FILTER=$'perl -MPOSIX -pe \'BEGIN { \$|=1 } print strftime("%Y-%m-%d %H:%M:%S ", localtime) . "toggle_tunnel: ";\''
-            #FILTER="perl -MPOSIX -pe 'BEGIN { \$|=1 } print strftime(\"%Y-%m-%d %H:%M:%S \", localtime) . \"toggle_tunnel: \";'"
-            # perl -MPOSIX -pe 'BEGIN { $|=1 } print strftime("%Y-%m-%d %H:%M:%S ", localtime) . "toggle_tunnel: ";'
-
             eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\"  '" &
 
-            #works
-            #eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING 2>&1 | sed -u \"s/^/\$(date +%Y-%m-%d_%H:%M:%S ) tunnel_cmd: /\" >> \"$LOGFILE\"  '" &
-
-            #eval "$EXPECT_WRAPPER  nohup  bash -c 'unbuffer $COMMAND_STRING 2>&1 | sed \"s/^/tunnel_cmd: /\" >> \"$LOGFILE\"  '" &
-            #eval "$EXPECT_WRAPPER  nohup  bash -c 'stdbuf -o0 -e0 $COMMAND_STRING 2>&1 | sed \"s/^/tunnel_cmd: /\"  >> \"$LOGFILE\" 2>&1 ' " &
-
-            # works but no prefix for stdout and stderr
-            #eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING   >> \"$LOGFILE\" 2>&1 ' " &
-
-            #eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING     |& cat \"$LOGFILE\"' " &
-
-            # using gawk to add prefix  => does not work
-            # AWK_SCRIPT_STDOUT='{ print strftime("%Y-%m-%d %H:%M:%S"), "[stdout] tunnel_cmd: ", $0; fflush() }'
-            # eval "$EXPECT_WRAPPER  nohup  bash -c '$COMMAND_STRING  >(gawk \"$AWK_SCRIPT_STDOUT\" >>\"$LOGFILE\") 2>   ' " &
-
-            # TODO
-            # - add test stderr in cmd DONE
-            # - make cmd wrapper instead of bash -c above
-
-            # using log_wrapper to log output of tunnel command
+            # using external log_wrapper to log output of tunnel command
             #eval "$EXPECT_WRAPPER  nohup  log_wrapper '$COMMAND_STRING' '$LOGFILE' 'tunnel_cmd' " &
         fi
 
@@ -145,16 +105,7 @@ toggle_tunnel() {
 
 # internal wrapper to log output of toggle_tunnel function
 #toggle_tunnel "$@" > >(gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "[stdout] toggle_tunnel: ", $0; fflush() }' >>"$LOGFILE") 2> >(gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "[stderr] toggle_tunnel: ", $0; fflush() }' >>"$LOGFILE") &
-
-# internal wrapper to log output of toggle_tunnel function
-#toggle_tunnel "$@" 2>&1 | sed -u "s/^/$(date +%Y-%m-%d\ %H:%M:%S) toggle_tunnel: /" >>"$LOGFILE" &
-#toggle_tunnel "$@" 2>&1 | eval 'sed -u "s/^/$(date +%Y-%m-%d\ %H:%M:%S) toggle_tunnel: /"' >>"$LOGFILE" &
-
-#toggle_tunnel "$@" 2>&1 | ts "%Y-%m-%d %H:%M:%S toggle_tunnel:"
-
-# GOOD 1
 toggle_tunnel "$@" 2>&1 | gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "toggle_tunnel: ", $0; fflush() }' >>"$LOGFILE"
-#toggle_tunnel "$@" 2>&1 | perl -MPOSIX -pe 'BEGIN { $|=1 } print strftime("%Y-%m-%d %H:%M:%S ", localtime) . "toggle_tunnel: ";' >>"$LOGFILE"
 
 # using external log_wrapper to log output of toggle_tunnel function
 #toggle_tunnel "$@" &
