@@ -3,7 +3,7 @@
 # <xbar.version>v1.0</xbar.version>
 # <xbar.author>Harco Kuppens</xbar.author>
 # <xbar.author.github>harcokuppens</xbar.author.github>
-# <xbar.desc>Easily create SSH tunnels automatically using password/keys and optionally an OTP secret stored in the MacOS keychain, or use interactive authentication dialogs to supply password or OTP code manually.</xbar.desc>
+# <xbar.desc>Easily create SSH tunnels automatically using password/keys and optionally an OTP secret stored in the MacOS keychain, or use interactive authentication dialogs to supply password or OTP code manually. Read documentation on https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels how to setup tunnels in tunnels.json and how to setup keychain for usage with this plugin.</xbar.desc>
 # <xbar.image></xbar.image>
 # <xbar.dependencies>jq, gawk, oathtool, and expect</xbar.dependencies>
 # <xbar.abouturl>https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels</xbar.abouturl>
@@ -184,7 +184,7 @@ echo "---"
 echo "Dynamic Forwards (SOCKS Proxies) | color=lightgray"
 output_menu_items "dynamic"
 echo "---"
-echo " view log| shell='open' param1='$TUNNELS_LOGFILE'  terminal=false  "
 echo " edit tunnels.json config | shell='open' param1='$TUNNELS_JSON_FILE'  terminal=false  "
+echo " view log| shell='open' param1='$TUNNELS_LOGFILE'  terminal=false  "
 echo "---"
-echo "about easy-ssh-tunnels| href='https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels'"
+echo "Documentation: how to setup and use easy-ssh-tunnels| href='https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels'"
