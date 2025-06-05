@@ -20,7 +20,6 @@ export PATH="$PATH:$SCRIPT_DIR/easy-ssh-tunnels/bin:/opt/homebrew/bin"
 GET_TUNNEL_PID="ssh_tunnel_get_process_id"
 # absolute paths of commands used in menu
 TOGGLE_TUNNEL="$SCRIPT_DIR/easy-ssh-tunnels/bin/toggle_tunnel"
-#TOGGLE_TUNNEL="$SCRIPT_DIR/easy-ssh-tunnels/bin/logged_toggle_tunnel"
 
 #------------------------
 # load config
