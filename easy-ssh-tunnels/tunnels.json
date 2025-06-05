@@ -11,7 +11,7 @@
     "LABEL": "RDP to windows laptop using dialogs (default for expect_passwd_and_otp)",
     "TYPE": "local",
     "EXPECT_WRAPPERS": "expect_passwd_and_otp",
-    "COMMAND": "sshbridge 13389 machine.to.bridge.firewall.com windows.machine.behind.firewall.com 3389"
+    "COMMAND": "sshbridge 13399 machine.to.bridge.firewall.com windows.machine.behind.firewall.com 3389"
   },
   {
     "PORT": 12345,
