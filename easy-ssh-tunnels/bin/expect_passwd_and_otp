@@ -2,6 +2,8 @@
 
 
 cd /tmp
+# the timeout in an expect script is primarily a timeout for expect to receive expected output from the program it's interacting with
+# note: when the expect output is received then the action is executed, the timeout it not on the action itself
 set timeout 5
 # Change directory to /tmp to make any created files there.. (eg. nohup.out if running command with nohup)
 
@@ -64,9 +66,9 @@ if {[llength $main_command] == 0} {
 # --- End Input Validation ---
 
 # Print the commands that will be used for execution.
-puts "Spawning command: $main_command"
-puts "Password generator command: $passwd_generator_cmd (default: $default_passwd_generator_cmd)"
-puts "OTP generator command: $otp_generator_cmd (default: $default_otp_generator_cmd)"
+puts "Expect: Spawning command: $main_command"
+puts "Expect: Password generator command: $passwd_generator_cmd (default: $default_passwd_generator_cmd)"
+puts "Expect: OTP generator command: $otp_generator_cmd (default: $default_otp_generator_cmd)"
 
 # Execute the main command.
 eval spawn  $main_command
@@ -74,27 +76,27 @@ eval spawn  $main_command
 # Expect block to handle prompts.
 expect {
     "Password:" {
-        puts "Password prompt detected. Executing password 'generator' command... "
+        puts "Expect: Password prompt detected. Executing password 'generator' command... "
         # Execute the Password generator command and capture its output.
         # Use 'catch' to handle potential errors during the command execution.
         set passwd_result ""
         if {[catch {exec $passwd_generator_cmd} passwd_result]} {
-            puts stderr "Error executing Password generator command '$passwd_generator_cmd': $passwd_result"
+            puts stderr "Expect: Error executing Password generator command '$passwd_generator_cmd': $passwd_result"
             exit 1
         }
-        puts "Password obtained. Sending..."
+        puts "Expect: Password obtained. Sending..."
         send "$passwd_result\r"
-        puts "Password sent."
+        puts "Expect: Password sent."
         exp_continue
         # Continue waiting for the next prompt, potentially the 2FA token
     }
     "2FA token:" {
-        puts "2FA token prompt detected. Executing OTP generator command..."
+        puts "Expect: 2FA token prompt detected. Executing OTP generator command..."
         # Execute the OTP generator command and capture its output.
         # Use 'catch' to handle potential errors during the OTP command execution.
         set otp_code_result ""
         if {[catch {exec $otp_generator_cmd} otp_code_result]} {
-            puts stderr "Error executing OTP generator command '$otp_generator_cmd': $otp_code_result"
+            puts stderr "Expect: Error executing OTP generator command '$otp_generator_cmd': $otp_code_result"
             exit 1
         }
 
@@ -102,21 +104,21 @@ expect {
         regsub -all {[\r\n\t ]} $otp_code_result "" otp_code_trimmed
 
         if {$otp_code_trimmed eq ""} {
-            puts stderr "Error: OTP generator command returned an empty or whitespace-only string."
+            puts stderr "Expect: Error: OTP generator command returned an empty or whitespace-only string."
             exit 1
         }
 
-        puts "OTP obtained. Sending..."
+        puts "Expect: OTP obtained. Sending..."
         send "$otp_code_trimmed\r"
-        puts "OTP sent."
+        puts "Expect: OTP sent."
 
     }
     timeout {
-        puts stderr "Error: Timeout waiting for authentication prompt."
+        puts stderr "Expect: Error: Timeout waiting for authentication prompt."
         exit 1
     }
     eof {
-        puts stderr "Error: connection closed unexpectedly before authentication prompt."
+        puts stderr "Expect: Error: connection closed unexpectedly before authentication prompt."
         exit 1
     }
 }

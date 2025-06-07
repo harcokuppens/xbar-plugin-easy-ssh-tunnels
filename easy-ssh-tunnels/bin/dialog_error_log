@@ -1,0 +1,42 @@
+#!/bin/bash
+
+LOG_FILE="/Users/harcok/Library/Application Support/xbar/plugins/easy-ssh-tunnels/log.txt"
+
+ERROR_CODE="$1"
+PORT="$2"
+LABEL="$3"
+
+# create a description for the error message from the port and label matched to the menu item
+string_length=${#LABEL}
+if ((string_length >= 30)); then
+    # Shorten the string to the first 36 characters with an ellipsis
+    LABEL="${LABEL:0:26}..."
+fi
+DESCRIPTION="      'Port: $PORT : $LABEL'\n"
+
+ERROR_MESSAGE="Error $ERROR_CODE in opening the SSH tunnel/proxy with menu label:\n\n$DESCRIPTION\nPlease check the log file for more details."
+
+DIALOG_TITLE="Error - Easy SSH Tunnels"
+BUTTON_TEXT="Open Log File"
+
+# Construct the AppleScript command for the dialog
+# Added 'cancel button "Dismiss"' to allow Escape key to dismiss
+USER_CHOICE=$(osascript -e "tell app \"System Events\" to display dialog \"$ERROR_MESSAGE\" with title \"$DIALOG_TITLE\" buttons {\"$BUTTON_TEXT\", \"Dismiss\"} default button 1 cancel button \"Dismiss\" with icon 2")
+
+# Capture the button returned.
+# The user clicked the first button (Open Log File) or the second (Dismiss), or pressed Escape (which returns "Dismiss").
+if [[ "$USER_CHOICE" == "button returned:$BUTTON_TEXT" && -f "$LOG_FILE" ]]; then
+    echo "User clicked to open log file."
+    # Using 'open' command in bash is generally simpler for files
+    open "$LOG_FILE"
+elif [[ "$USER_CHOICE" == "button returned:$BUTTON_TEXT" && ! -f "$LOG_FILE" ]]; then
+    # This branch is for when BUTTON_TEXT is "OK" (if log file not found)
+    echo "User acknowledged error. Log file was not found."
+else
+    # This 'else' block now covers:
+    # 1. User clicked the "Dismiss" button.
+    # 2. User pressed the Escape key (which acts like clicking "Dismiss").
+    # 3. User closed the dialog via the window close button.
+    echo "User dismissed the error dialog."
+    exit 1
+fi

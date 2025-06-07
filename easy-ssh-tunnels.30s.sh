@@ -89,9 +89,9 @@ output_menu_items() {
             TUNNELINFO=""
         fi
         # output menu item
-        echo " $TUNNELICON $PORT $TUNNEL_LABEL $TUNNELINFO | shell='$TOGGLE_TUNNEL' param1='$PORT' param2='$TUNNEL_COMMAND' param3='$TUNNEL_EXPECT_WRAPPER' terminal=false trim=false "
-        # note: no 'refresh=true' on menu, because TOGGLE_TUNNEL command must detach with nohup to keep its ssh process running,
-        #       and therefore returns before tunnel setup is done. Instead the detached TOGGLE_TUNNEL command does call xbar_refresh,
+        echo " $TUNNELICON Port $PORT : $TUNNEL_LABEL $TUNNELINFO | shell='$TOGGLE_TUNNEL' param1='$PORT' param2='$TUNNEL_COMMAND' param3='$TUNNEL_EXPECT_WRAPPER' param4='$TUNNEL_LABEL' terminal=false trim=false "
+        # note: no 'refresh=true' on menu, because TUNNEL_COMMAND  must detach with nohup to keep its ssh process running,
+        #       and therefore returns before tunnel setup is done. Instead the detached TUNNEL_COMMAND command does call xbar_refresh,
         #       when tunnel is running.
     done
 }
@@ -174,13 +174,19 @@ fi
 # Display the menu items for each type of forward
 # where active tunnels are shown in green and inactive ones in black
 echo "---"
+#echo "Easy SSH Tunnels | color=black href='https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels'"
+echo "Easy SSH Tunnels  "
+echo "---"
 echo "Local Forwards | color=lightgray"
 output_menu_items "local"
 echo "---"
 echo "Dynamic Forwards (SOCKS Proxies) | color=lightgray"
 output_menu_items "dynamic"
 echo "---"
-echo " edit tunnels.json config | shell='open' param1='$TUNNELS_JSON_FILE'  terminal=false  "
-echo " view log| shell='open' param1='$TUNNELS_LOGFILE'  terminal=false  "
+#echo " Edit tunnels.json config | shell='open' param1='$TUNNELS_JSON_FILE'  terminal=false  "
+echo " Edit config | shell='open' param1='$TUNNELS_JSON_FILE'  terminal=false  "
+echo " View log| shell='open' param1='$TUNNELS_LOGFILE'  terminal=false  "
 echo "---"
-echo "Documentation: how to setup and use easy-ssh-tunnels| href='https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels'"
+#echo "Easy SSH Tunnels  "
+#echo "Documentation: how to setup and use easy-ssh-tunnels| href='https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels'"
+echo "Documentation| href='https://github.com/harcokuppens/xbar-plugin-easy-ssh-tunnels'"
