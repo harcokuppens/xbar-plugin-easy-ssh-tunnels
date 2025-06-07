@@ -2,7 +2,7 @@
 
 # Set AUTOMATIC_AUTH to true if always automatically start the tunnel without waiting for user input
 # to shorten the waiting time for the tunnel to start.
-AUTOMATIC_AUTH="true"
+AUTOMATIC_AUTH="false"
 
 # Get the directory of the current plugin script
 # This is crucial for portability, as xbar might execute from a different CWD
@@ -95,23 +95,11 @@ toggle_tunnel() {
         # works with dialog_error_log
         HANDLE_ERROR='{ exitcode=${PIPESTATUS[0]} && echo "cmd exited with error $exitcode" && dialog_error_log $exitcode '"$PORT"' "'"$LABEL"'" ; }'
         eval "$EXPECT_WRAPPER  nohup  bash -c 'set -o pipefail && { $COMMAND_STRING  || $HANDLE_ERROR  ; } 2>&1  | $FILTER >> \"$LOGFILE\" '" &
-
-        # echo "$EXPECT_WRAPPER  nohup  bash -c 'set -o pipefail && $COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\" || { exitcode=\$? && echo \"cmd exited with error \$exitcode\" && dialog_error_log \$exitcode ; }'"
-        # works
-        # eval "$EXPECT_WRAPPER  nohup  bash -c 'set -o pipefail && $COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\" || { exitcode=\$? && echo \"cmd exited with error \$exitcode\" && dialog_error_log \$exitcode ; }'" &
-
-        # eval "$EXPECT_WRAPPER  nohup  bash -c 'set -o pipefail && $COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\" || { exitcode=\${PIPESTATUS[0]} && echo \"cmd exited with error \$exitcode\" && dialog_error_log \$exitcode ; }'" &
-
-        # TODO:
-        # 1. in case if long ssh timeout  this toggle_tunnel function/cmd has already ended , and nohup has kicked in to keep the tunnel alive. However the tunnel command is then never started of timeout, but the echo cmd above
-        # when run is not catched anymore by logwrapper around toggle_tunnel function because both stopped already. -> fix: add error handling directly after COMMAND_STRING
-        # 2. when we cancel otp code dialog then we also get dialog error window, but not 'cmd exited with error' log msg ?? -> can we somehow cancel the dialog_error_log call if we cancel the otp dialog?
-
-        #eval "$EXPECT_WRAPPER  nohup  bash -c 'set -o pipefail && $COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\" || { exitcode=\${PIPESTATUS[0]} && echo \"cmd exited with error \$exitcode\" && dialog_error_log \$exitcode ; }'" &
-
         # note: nohup and '&' apply to the whole pipeline, but the expect wrapper expects a single command as argument.
         #       If you would do   '$EXPECT_WRAPPER  nohup  a | b | c &'   then the expect wrapper would take a as command and not the whole pipeline.
         #       Therefore we use 'bash -c' to run the whole pipeline as a single command.
+        # note: we do handling or error within nohup so we are sure that logging of the error is done. When we would
+        #       do logging of the expect wrapper then it would not log the error if the toggle_tunnel command exits earlier.
 
         # wait for the tunnel to be started to refresh the menu
         # note: this is not needed if the command returns with error, but this waiting is started in parallel with the command, making
@@ -159,19 +147,24 @@ toggle_tunnel() {
 
 # Description toggle_tunnel
 # - toggle_tunnel goal is to start or stop a tunnel command, which is usually an ssh command
-# - the tunnel command is run in background, so that we in parallel can wait for the tunnel to be started or stopped
-#   by checking whether the port is become active or inactive. When the port's activity is toggled then the menu is refreshed.
+# - the tunnel command is run (NEEDED see implementation) in background, so that we in parallel can wait
+#   for the tunnel to be started or stopped by checking whether the port is become active or inactive.
+#   When the port's activity is toggled then the menu is refreshed.
 # - for this checking we use a timeout to make this script still terminate when something went wrong.
 # - when starting the tunnel we use a timeout of 30 seconds, which should be enough time for any authentication dialogs to be filled in.
 # - when stopping the tunnel we use a timeout of 5 seconds, which is more than enough time for the process to terminate.
 # - when you only have automatic authentication (eg. ssh key and otp wrapper) then the tunnels will be started almost immediately,
 #   and in that case you could set the AUTOMATIC_TUNNEL variable to true, which will shorten the waiting for the tunnel to start.
-# - IMPLEMENTATION DETAIL: we need to run the ssh command using nohup within an expect wrapper,
-#   because running the ssh command directly in the background with its -f option does
-#   not work with the expect wrapper, because then any sub ssh command run for the ProxyJump
-#   will not be correctly established before the expect wrapper exits.
-#   We solve this by running the ssh command using nohup within the expect wrapper,
-#   and run the whole 'expect nohup cmd' in the background (using & in bash shell).
+# - IMPLEMENTATION DETAIL:
+#     we need to run the ssh command using nohup within an expect wrapper,
+#     because running the ssh command directly in the background with its -f option does
+#     not work with the expect wrapper, because then any sub ssh command run for the ProxyJump
+#     will not be correctly established before the expect wrapper exits.
+#     We solved this by running the ssh command using nohup within the expect wrapper.
+#     The expect wrapper script may not exit but must keep running in interactive mode,
+#     to give the ssh proxy jump command time to establish the connection.
+#     Because the expect wrapper keeps  running in interactive mode, it does not return to the shell script.
+#     Therefore we NEEDED to run the whole 'expect nohup cmd' in the background (using & in bash shell).
 # - note: xbar already runs the launched command in the background, so we didn't need to run the tunnel command in the background
 #        to make this launch script end quickly for a responsive menu.
 #        The current toggle_tunnel command is not fast anyway, because we wait with timeout of 30 seconds!
