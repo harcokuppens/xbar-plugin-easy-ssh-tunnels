@@ -237,7 +237,8 @@ You can automate authentication by storing secrets in the macOS Keychain and usi
 
 The plugin supports both a **global timeout** and a **per-tunnel timeout** for
 starting SSH tunnels. This timeout determines how long the plugin will wait for a
-tunnel to successfully start before considering it failed.
+tunnel to successfully start before considering it failed. A special timeout of 0
+means wait forever until the ssh command itself exits.
 
 - **Global Timeout:**  
   You can set a default timeout value that applies to all tunnels. This is useful for
@@ -271,6 +272,9 @@ tunnel to successfully start before considering it failed.
   instantly. If they do not, a quick timeout helps detect issues early.
 - For tunnels requiring **manual authentication** (dialogs), you may want to use a
   longer timeout to allow time for user input.
+- If a tunnel gives problem, then to debug set the `"TIMEOUT": 0` so that the ssh
+  command can run itself to its end giving us more information about what is going
+  wrong.
 
 If a tunnel fails to start within the specified timeout, it will be marked as failed
 and the error will be logged in `log.txt`.
