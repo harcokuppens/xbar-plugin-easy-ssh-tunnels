@@ -55,9 +55,11 @@ wait_for_tunnel_started() {
 wait_for_tunnel_stopped() {
     local port="$1"
     local timeout="$2"
-    local start_time=$(date +%s)
+    local start_time
     local current_time
     local TUNNELPID="initial_value" # Initialize to a non-empty value to enter the loop
+
+    start_time=$(date +%s)
 
     while [[ -n "$TUNNELPID" ]]; do # Loop as long as TUNNELPID is not empty
         TUNNELPID=$(ssh_tunnel_get_process_id "$port")
