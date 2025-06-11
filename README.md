@@ -25,6 +25,7 @@ file, and monitor or control them directly from your menu bar.
       * [<strong>3. Authentication Wrappers</strong>](#3-authentication-wrappers)
          * [<strong>Default: Dialog Prompts</strong>](#default-dialog-prompts)
          * [<strong>Automated: macOS Keychain</strong>](#automated-macos-keychain)
+      * [<strong>4. Timeout Settings</strong>](#4-timeout-settings)
    * [<strong>Usage</strong>](#usage)
    * [<strong>Advanced: Custom Authentication</strong>](#advanced-custom-authentication)
    * [<strong>How it Works</strong>](#how-it-works)
@@ -32,6 +33,7 @@ file, and monitor or control them directly from your menu bar.
    * [<strong>Troubleshooting</strong>](#troubleshooting)
    * [<strong>License</strong>](#license)
 <!--te-->
+
 ---
 
 ## **Features**
@@ -142,22 +144,26 @@ Each entry specifies:
 **Example:**
 
 ```json
-[
-  {
-    "PORT": 13389,
-    "LABEL": "RDP to windows laptop",
-    "TYPE": "local",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp -p keychain_password -o keychain_otp_code",
-    "COMMAND": "sshbridge 13389 bridge.example.com windows.internal 3389"
-  },
-  {
-    "PORT": 1080,
-    "LABEL": "SOCKS Proxy via jumphost",
-    "TYPE": "dynamic",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp",
-    "COMMAND": "ssh -N -D 1080 user@jumphost.example.com"
-  }
-]
+{
+  "DEFAULT_TIMEOUT": 30,
+  "TUNNELS": [
+    {
+      "PORT": 13389,
+      "LABEL": "RDP to windows laptop",
+      "TYPE": "local",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp -p keychain_password -o keychain_otp_code",
+      "COMMAND": "sshbridge 13389 bridge.example.com windows.internal 3389",
+      "TIMEOUT": 5
+    },
+    {
+      "PORT": 1080,
+      "LABEL": "SOCKS Proxy via jumphost",
+      "TYPE": "dynamic",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp",
+      "COMMAND": "ssh -N -D 1080 user@jumphost.example.com"
+    }
+  ]
+}
 ```
 
 Note that for proxies we use the standard **ssh** command, because for proxies its
@@ -226,6 +232,48 @@ You can automate authentication by storing secrets in the macOS Keychain and usi
   different authentication credentials. Each script should use internally a different
   `ACCOUNT_NAME` in the keychain to prevent conflicts. Eg. create a
   `keychain_otp_code_myservice` with `ACCOUNT_NAME="otp_secret_myservice"`.
+
+### **4. Timeout Settings**
+
+The plugin supports both a **global timeout** and a **per-tunnel timeout** for
+starting SSH tunnels. This timeout determines how long the plugin will wait for a
+tunnel to successfully start before considering it failed.
+
+- **Global Timeout:**  
+  You can set a default timeout value that applies to all tunnels. This is useful for
+  general cases and can be configured in the main plugin script or configuration. You
+  specify the global timeout in the `DEFAULT_TIMEOUT` field in root object in the
+  `tunnels.json`.
+
+- **Per-Tunnel Timeout:**  
+  You can override the global timeout for individual tunnels by specifying a
+  `TIMEOUT` field in the tunnel's entry in `tunnels.json`.
+
+**Example:**
+
+```json
+[
+  {
+    "PORT": 13389,
+    "LABEL": "RDP to windows laptop",
+    "TYPE": "local",
+    "EXPECT_WRAPPERS": "expect_passwd_and_otp -p keychain_password -o keychain_otp_code",
+    "COMMAND": "sshbridge 13389 bridge.example.com windows.internal 3389",
+    "TIMEOUT": 5
+  }
+]
+```
+
+**Best Practices:**
+
+- For tunnels using **automated authentication** (such as keychain scripts), use a
+  **short timeout** (e.g., 3–5 seconds), since these tunnels should start almost
+  instantly. If they do not, a quick timeout helps detect issues early.
+- For tunnels requiring **manual authentication** (dialogs), you may want to use a
+  longer timeout to allow time for user input.
+
+If a tunnel fails to start within the specified timeout, it will be marked as failed
+and the error will be logged in `log.txt`.
 
 ---
 
