@@ -181,6 +181,8 @@ toggle_tunnel() {
         wait_for_tunnel_stopped "$PORT" "$timeout"
         xbar_refresh
     fi
+    # print a dashed line to separate different connections entries in the log.
+    echo "------------------------------------------------------------------------------------------"
 }
 
 # Description toggle_tunnel
