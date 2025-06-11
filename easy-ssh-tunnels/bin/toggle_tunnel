@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Set AUTOMATIC_AUTH to true if always automatically start the tunnel without waiting for user input
-# to shorten the waiting time for the tunnel to start.
-AUTOMATIC_AUTH="false"
-
 # Get the directory of the current plugin script
 # This is crucial for portability, as xbar might execute from a different CWD
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
@@ -17,24 +13,41 @@ LOGFILE="$SCRIPT_DIR/../log.txt"
 
 wait_for_tunnel_started() {
     local port="$1"
-    local timeout"$2"
-    local start_time=$(date +%s)
+    local timeout="$2"
+    local start_time
     local current_time
     local TUNNELPID=""
 
+    start_time=$(date +%s)
+
     while [[ -z "$TUNNELPID" ]]; do
+
+        # Check if the tunnel is already running
         TUNNELPID=$(ssh_tunnel_get_process_id "$port")
         if [[ -n "$TUNNELPID" ]]; then
             echo "SSH tunnel on port $port started with PID: $TUNNELPID"
             return 0 # Success
         fi
 
-        current_time=$(date +%s)
-        if ((current_time - start_time >= timeout)); then
-            echo "Timeout waiting for SSH tunnel to start."
-
-            return 1 # Timeout
+        # check timeout
+        if [[ "$timeout" == "0" ]]; then
+            # if timeout is not 0 then we do not check for timeout,
+            # instead we check whether the tunnel command is not running anymore,
+            # basically we follow the timeout from the tunnel command to exit,
+            # because when the tunnel command has exited then the tunnel will never start running anymore.
+            if ! pgrep -fil "$COMMAND_STRING" >/dev/null; then
+                echo "Tunnel command '$COMMAND_STRING' is not running. Exiting wait loop."
+                return 1 # Exit if the tunnel command is not running
+            fi
+        else
+            # Check if the timeout has been reached, then return failure
+            current_time=$(date +%s)
+            if ((current_time - start_time >= timeout)); then
+                echo "Timeout waiting for SSH tunnel to start."
+                return 1 # Timeout
+            fi
         fi
+
         sleep 0.5 # Wait a bit before retrying
     done
 }
@@ -67,15 +80,13 @@ toggle_tunnel() {
     COMMAND_STRING="$2"
     EXPECT_WRAPPER="$3"
     LABEL="$4"
+    TIMEOUT="$5"
 
     TUNNELPID=$(ssh_tunnel_get_process_id $PORT)
     if [[ -z "$TUNNELPID" ]]; then
         echo "open tunnel"
 
         # run tunnel command
-        #  - in background because tunnel keeps running (tunnel cmd does not return)
-        #  - using nohup to keep tunnel alive if this launch script ends quickly for responsive menu
-        #  - EXPECT_WRAPPER can be empty, if no expect wrapper is used
         echo "running cmd: '$EXPECT_WRAPPER nohup  $COMMAND_STRING'"
 
         # using internal log_wrapper to log output of tunnel command
@@ -89,50 +100,75 @@ toggle_tunnel() {
         # IMPORTANT: fflush() is used to ensure that the output is written immediately to the log file
         FILTER='gawk "{ print strftime(\"%Y-%m-%d %H:%M:%S\"), \"tunnel_cmd: \", \$0; fflush() }"'
 
-        # works without dialog_error
-        #eval "$EXPECT_WRAPPER  nohup  set -o pipefail && $COMMAND_STRING 2>&1 | $FILTER >> \"$LOGFILE\" '" &
-
-        # works with dialog_error_log
+        # if the command fails then we log the error and exit with an error code
+        # note: we use PIPESTATUS[0] to get the exit code of the first command in the pipeline,
+        # note: we use 'set -o pipefail' to ensure that the pipeline exits when any part of the pipe fails (not just the last command).
         HANDLE_ERROR='{ exitcode=${PIPESTATUS[0]} && echo "cmd exited with error $exitcode" && dialog_error_log $exitcode '"$PORT"' "'"$LABEL"'" ; }'
-        eval "$EXPECT_WRAPPER  nohup  bash -c 'set -o pipefail && { $COMMAND_STRING  || $HANDLE_ERROR  ; } 2>&1  | $FILTER >> \"$LOGFILE\" '" &
+
+        # the tunnel command
+        # - we run the command in the background, so that we can wait for the tunnel to start/stop in parallel, a d
+        # - we use nohup to keep the tunnel command running even if this script exits.
+        # - we use the expect wrapper to run the command, so that we can handle any interactive authentication prompts.
+        eval "$EXPECT_WRAPPER  nohup  bash -c 'set -o pipefail && { $COMMAND_STRING  || $HANDLE_ERROR  ; } 2>&1  | $FILTER >> \"$LOGFILE\" '" >/dev/null 2>&1 &
+        # note: we do handling or error within nohup so we are sure that logging of the error is done. When we would
+        #       do logging of the expect wrapper then it would not log the error if the toggle_tunnel command exits earlier.
+        # note: we run the command in the background, so that we can wait for the tunnel to start or stop in parallel.
+        #       This is important, because the tunnel command may take some time to start or stop.
+        #       If we would not run the command in the background and wait for it to return,
+        #       then the command would return when the expect wrapper exits, after the authtentication is done.
+        #       But then the tunnel may not be started yet, and the port may not be active yet. Then we cannot
+        #       update the menu to show the tunnel as active. By waiting for the tunnel to start in parallel,
+        #       we can ensure that the menu is updated as soon as the tunnel is active.
+        #       And when waiting in parallel we are able to stop the starting of the tunnel command  earlier if
+        #       the tunnel command fails to start because of a long connection timeout or other error.
         # note: nohup and '&' apply to the whole pipeline, but the expect wrapper expects a single command as argument.
         #       If you would do   '$EXPECT_WRAPPER  nohup  a | b | c &'   then the expect wrapper would take a as command and not the whole pipeline.
         #       Therefore we use 'bash -c' to run the whole pipeline as a single command.
-        # note: we do handling or error within nohup so we are sure that logging of the error is done. When we would
-        #       do logging of the expect wrapper then it would not log the error if the toggle_tunnel command exits earlier.
+        # note: '>/dev/null 2>&1 &' is used to redirect the output of the nohup command to /dev/null .
+        #       In the pipeline  toggle_tunnel | gawk ...  in this script, the output of the toggle_tunnel function is piped to gawk.
+        #       If we wouldn't had '>/dev/null 2>&1' in above command the output of the nohup command would because of this pipeline  piped to gawk.
+        #       This means as long the nohup command is running, gawk in the above pipeline stays connected to the nohup command,
+        #       and therefore pipeline does not exit.
+        #       By redirecting the output of the nohup command to /dev/null, we ensure that the pipeline can exit,
+        #       because then when the toggle_tunnel function exits, the os will notify this and sees nothing is connected
+        #       to the pipe anymore and send eof to gawk over the pipe, causing gawk to exit.
 
         # wait for the tunnel to be started to refresh the menu
-        # note: this is not needed if the command returns with error, but this waiting is started in parallel with the command, making
-        #       it difficult to cancel the tunnel if it does not start correctly.
-        #        So we let it run out the waiting loop, which will stop after the timeout.
-        timeout=30 # timeout of 30 seconds gives end user enough time to fill in all authentication dialogs in expect wrapper
-        if [[ "$AUTOMATIC_AUTH" == "true" ]]; then
-            timeout=5
-            # if AUTOMATIC_AUTH is true then we don't wait very long for the tunnel to start, because it will start immediately
-            # and we don't want to wait for the timeout of 30 seconds.
-            echo "AUTOMATIC_AUTH is true, so we shorten the waiting for tunnel to start."
-        fi
+        # this waiting is started in parallel with the command (see why above),
+        #   - if an active port is detected then we assume that the tunnel command has started successfully,
+        #     and we refresh the menu to show the tunnel as active.
+        #   - if no active port gets detected then:
+        #      * if within the timeout the port is not active then we assume that the tunnel command has failed to start,
+        #        and we kill the tunnel command to give the end user more quickly feedback that the tunnel failed to start.
+        #        Note that we must kill the tunnel command, because it can be still running in the background,
+        #        because itself is waiting for a connection timeout, which is longer than the timeout we use here.
+        #      * With a timeout of 0  we follow the timeout of the tunnel command by waiting for the tunnel to exit.
         # note:
         #   - after timeout this shell script will exit and the expect wrapper running in background will also exit, but
-        #     the tunnel command will keep running in background, because it was started with nohup.
-        #   - the ssh cmd itself has a timeout of connecting to the remote host, so it will not run forever. (by default 2 minutes)
-        #     so in case connection timout happens then it can take  2 minutes before the error dialog is shown.
-        echo "waiting for tunnel to start on port $PORT with timeout of $timeout seconds"
-        if wait_for_tunnel_started "$PORT" "$timeout"; then
+        #     the tunnel command will still be running in the background, because it was started with nohup.
+        #     Because the timeout is reached we will stop the tunnel commmand.
+        #   - the tunnel command is often an ssh command, and ssh itself has a timeout of connecting to the remote host,
+        #     so it will not run forever. By default it times out after 2 minutes if connection cannot be established,
+        #     before that time. For a timeout of 0, then we effectively have a a timeout of 2 minutes, when the ssh
+        #     command times out.
+        echo "waiting for tunnel to start on port $PORT with timeout of $TIMEOUT seconds"
+        if wait_for_tunnel_started "$PORT" "$TIMEOUT"; then
             echo "Tunnel started successfully."
             xbar_refresh
         else
             echo "Timeout happened: tunnel probably failed to start."
-            # if authentication is automatic then we the tunnel should have started immediately,
-            # so we assume that the tunnel command is somehow waiting for a connection timeout,
-            # and we kill the tunnel command to give the end user more quickly feedback that the tunnel failed to start.
-            echo "Tunnel command did not start within the expected time, probably connection problem, killing the command."
-            echo "pkill -fil \"$COMMAND_STRING\""
-            pkill -fil "$COMMAND_STRING" >/dev/null
-            dialog_error_log "TIMEOUT" "$PORT" "$LABEL"
-            # PROBLEM: problem: the ssh command could ended earlier with an error dialog, but we cannot see that in this parallel waiting job,
-            #       causing a dialog_error_log to be shown again after the timeout => 2 times the error dialog is shown.
-            # TODO: FIX: only kill and show error dialog if not running anymore, so that we don't show the error dialog twice.
+            # This waiting code is running in parallel with launching the tunnel command.
+            # If the tunnel command did not open the port within the expected time, we kill it
+            # and show an error dialog.
+            # However if the command is not running anymore then ssh tunnel already exited and
+            # an error dialog is already shown by its launch command detecting the failure (see HANDLE_ERROR above).
+            # Therefore we only kill and show an error dialog when the tunnel command is still running.
+            if pgrep -fil "$COMMAND_STRING" >/dev/null; then
+                echo "Tunnel command did not start within the expected time, probably connection problem, killing the command."
+                echo "pkill -fil \"$COMMAND_STRING\""
+                pkill -fil "$COMMAND_STRING" >/dev/null
+                dialog_error_log "TIMEOUT" "$PORT" "$LABEL"
+            fi
         fi
     else
         echo "close tunnel"
@@ -149,22 +185,33 @@ toggle_tunnel() {
 # - toggle_tunnel goal is to start or stop a tunnel command, which is usually an ssh command
 # - the tunnel command is run (NEEDED see implementation) in background, so that we in parallel can wait
 #   for the tunnel to be started or stopped by checking whether the port is become active or inactive.
-#   When the port's activity is toggled then the menu is refreshed.
+#   Only when the port's activity is toggled then the menu is refreshed. We do this explicitly using
+#   the xbar:// plugin refresh command, so that the menu is only updated when only necessarry.
 # - for this checking we use a timeout to make this script still terminate when something went wrong.
-# - when starting the tunnel we use a timeout of 30 seconds, which should be enough time for any authentication dialogs to be filled in.
+# - when starting the tunnel we use a user defined timeout (default set to 30 seconds), which should be enough time
+#   for any authentication dialogs to be filled in. This timeout can be configured in the tunnels.json file. You can set
+#   a global default timeout in the tunnels.json file, or set a specific timeout for each tunnel.
+#   If the timeout is set to 0 then we follow the timeout of the tunnel command to exit, which is often 2 minutes for ssh.
 # - when stopping the tunnel we use a timeout of 5 seconds, which is more than enough time for the process to terminate.
 # - when you only have automatic authentication (eg. ssh key and otp wrapper) then the tunnels will be started almost immediately,
-#   and in that case you could set the AUTOMATIC_TUNNEL variable to true, which will shorten the waiting for the tunnel to start.
+#   and in that case you could set the timeout variable to just 5 seconds, so that if something goes wrong the end user is notified quickly.
+#   and not after a long timeout of 30 seconds.
 # - IMPLEMENTATION DETAIL:
 #     we need to run the ssh command using nohup within an expect wrapper,
-#     because running the ssh command directly in the background with its -f option does
-#     not work with the expect wrapper, because then any sub ssh command run for the ProxyJump
-#     will not be correctly established before the expect wrapper exits.
-#     We solved this by running the ssh command using nohup within the expect wrapper.
-#     The expect wrapper script may not exit but must keep running in interactive mode,
-#     to give the ssh proxy jump command time to establish the connection.
-#     Because the expect wrapper keeps  running in interactive mode, it does not return to the shell script.
-#     Therefore we NEEDED to run the whole 'expect nohup cmd' in the background (using & in bash shell).
+#     because
+#      reason 1: running the ssh command directly in the background with its -f option does
+#                not work with the expect wrapper, because when ssh commmand detaches from the
+#                pty created by expect's launch command, the macos launchd process sends a hangup signal (SIGHUP)
+#                to the ssh command, which causes it to terminate.
+#                We solved this by running the ssh command using nohup within the expect wrapper in the background,
+#                which causes the ssh command to ignore the hangup signal (SIGHUP) and continue running in the background.
+#                We then also do not need the -f option of ssh  anymore because the ssh tunnel command can continue
+#                to run with nohup in the background already.
+#      reason 2: the expect wrapper script runs in a none-pty terminal, so it cannot run the ssh commmand in
+#                interactive mode, which needs a pty terminal.
+#                We solved this by running the ssh command using nohup within the expect wrapper.
+#                We then can just exit the expect wrapper script after the ssh command is authenticated, and the ssh command
+#                will continue to run in the background.
 # - note: xbar already runs the launched command in the background, so we didn't need to run the tunnel command in the background
 #        to make this launch script end quickly for a responsive menu.
 #        The current toggle_tunnel command is not fast anyway, because we wait with timeout of 30 seconds!
@@ -173,4 +220,4 @@ toggle_tunnel() {
 # - all output is send to logfile with datetime and either toggle_tunnel or tunnel_cmd prefix
 
 # internal wrapper to log output of toggle_tunnel function
-toggle_tunnel "$@" 2>&1 | gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "toggle_tunnel: ", $0; fflush() }' >>"$LOGFILE"
+toggle_tunnel "$@" 2>&1 | gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "toggle_tunnel: ", $0;  fflush() }' >>"$LOGFILE"

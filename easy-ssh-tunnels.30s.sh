@@ -80,6 +80,11 @@ output_menu_items() {
         TUNNEL_LABEL="${TUNNEL_LABELS[$PORT]}"
         TUNNEL_PID="${TUNNEL_ACTIVE[$PORT]}"
         TUNNEL_EXPECT_WRAPPER="${TUNNEL_EXPECT_WRAPPERS[$PORT]}"
+        TUNNEL_TIMEOUT="${TUNNEL_TIMEOUTS[$PORT]}"
+        # If a timeout is set, use it; otherwise, use the default timeout
+        if [[ "$TUNNEL_TIMEOUT" == "null" ]]; then
+            TUNNEL_TIMEOUT="$DEFAULT_TIMEOUT"
+        fi
 
         if [[ -n "$TUNNEL_PID" ]]; then
             TUNNELICON="🟢"
@@ -88,8 +93,9 @@ output_menu_items() {
             TUNNELICON="⚪"
             TUNNELINFO=""
         fi
+        TUNNELINFO="$TUNNELINFO (timeout=${TUNNEL_TIMEOUT}s)"
         # output menu item
-        echo " $TUNNELICON Port $PORT : $TUNNEL_LABEL $TUNNELINFO | shell='$TOGGLE_TUNNEL' param1='$PORT' param2='$TUNNEL_COMMAND' param3='$TUNNEL_EXPECT_WRAPPER' param4='$TUNNEL_LABEL' terminal=false trim=false "
+        echo " $TUNNELICON Port $PORT : $TUNNEL_LABEL $TUNNELINFO | shell='$TOGGLE_TUNNEL' param1='$PORT' param2='$TUNNEL_COMMAND' param3='$TUNNEL_EXPECT_WRAPPER' param4='$TUNNEL_LABEL' param5='$TUNNEL_TIMEOUT' terminal=false trim=false "
         # note: no 'refresh=true' on menu, because TUNNEL_COMMAND  must detach with nohup to keep its ssh process running,
         #       and therefore returns before tunnel setup is done. Instead the detached TUNNEL_COMMAND command does call xbar_refresh,
         #       when tunnel is running.

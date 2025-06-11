@@ -7,7 +7,7 @@ cd /tmp
 set timeout 5
 # Change directory to /tmp to make any created files there.. (eg. nohup.out if running command with nohup)
 
-# Uncomment for debugging:
+# # Uncomment for debugging:
 # set timeout -1
 # exp_internal 1
 
@@ -126,3 +126,4 @@ expect {
 
 # The expect script passes back raw interaction to the wrapped command.
 interact
+

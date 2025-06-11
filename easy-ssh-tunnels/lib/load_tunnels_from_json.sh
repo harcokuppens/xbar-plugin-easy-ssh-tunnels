@@ -25,8 +25,7 @@ load_tunnels_from_json() {
     # --- Use ASCII unit separator (0x1E) as a record delimiter, which is safer for Bash ---
     # note: when using null string as separator we will get into problems: null chars removed in variable jq_output!!
     local jq_output
-    jq_output=$(jq -j '.[] | [ (.PORT | tostring), .LABEL, .TYPE, .EXPECT_WRAPPERS, .COMMAND ] | join("\u001F") + "\u001E"' "$json_file")
-
+    jq_output=$(jq -j '.TUNNELS[] | [ (.PORT | tostring), .LABEL, .TYPE, .EXPECT_WRAPPERS, .COMMAND, (.TIMEOUT | tostring) ] | join("\u001F") + "\u001E"' "$json_file")
     local jq_exit_status=$?
 
     # Check if jq command was successful and produced any output
@@ -42,14 +41,28 @@ load_tunnels_from_json() {
     # The outer IFS=$'\n' splits the jq_output into individual record lines.
     while IFS= read -r -d $'\x1E' record_line; do # record separator is newline , fields within record_line separated with 1F
         # For each record line, use IFS=$'\x1F' (unit separator) to split it into individual fields.
-        IFS=$'\x1F' read -r port label type wrapper command <<<"$record_line"
+        IFS=$'\x1F' read -r port label type wrapper command timeout <<<"$record_line"
 
         # Populate the global bash associative arrays
         TUNNEL_LABELS[$port]="$label"
         TUNNEL_TYPE[$port]="$type"
         TUNNEL_EXPECT_WRAPPERS[$port]="$wrapper"
         TUNNEL_COMMANDS[$port]="$command"
+        TUNNEL_TIMEOUTS[$port]="$timeout"
     done <<<"$jq_output"
 
+    # get the default timeout from the JSON file
+    jq_output=$(jq '.DEFAULT_TIMEOUT' "$json_file")
+    jq_exit_status=$?
+
+    # Check if jq command was successful and produced any output
+    if [ "$jq_exit_status" -ne 0 ]; then
+        echo "Error: jq failed to parse JSON from '$json_file'." >&2
+        return 1
+    elif [[ "$jq_output" == "null" ]]; then
+        DEFAULT_TIMEOUT="30"
+    else
+        DEFAULT_TIMEOUT="$jq_output"
+    fi
     return 0 # Success
 }
