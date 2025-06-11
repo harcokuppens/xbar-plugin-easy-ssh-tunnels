@@ -1,44 +1,48 @@
-[
-  {
-    "PORT": 13389,
-    "LABEL": "RDP to windows laptop (using password/otpcode from keychain)",
-    "TYPE": "local",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp -p keychain_password -o keychain_otp_code",
-    "COMMAND": "sshbridge 13389 machine.to.bridge.firewall.com windows.machine.behind.firewall.com 3389"
-  },
-  {
-    "PORT": 13399,
-    "LABEL": "RDP to windows laptop using dialogs (default for expect_passwd_and_otp)",
-    "TYPE": "local",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp",
-    "COMMAND": "sshbridge 13399 machine.to.bridge.firewall.com windows.machine.behind.firewall.com 3389"
-  },
-  {
-    "PORT": 12345,
-    "LABEL": "Service running in docker on localhost:1080 on machine.behind.firewall.com",
-    "TYPE": "local",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
-    "COMMAND": "sshtunnel  12345 machine.to.bridge.firewall.com machine.behind.firewall.com  1080  "
-  },
-  {
-    "PORT": 22222,
-    "LABEL": "config entry X from ~/.ssh/config",
-    "TYPE": "local",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
-    "COMMAND": "ssh X"
-  },
-  {
-    "PORT": 1080,
-    "LABEL": "machine.to.bridge.firewall.com",
-    "TYPE": "dynamic",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
-    "COMMAND": "ssh -N -D 1080  henk@machine.to.bridge.firewall.com"
-  },
-  {
-    "PORT": 1081,
-    "LABEL": "machine.behind.firewall.com",
-    "TYPE": "dynamic",
-    "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
-    "COMMAND": "ssh -N -D 1081   -J henk@machine.to.bridge.firewall.com  henk@machine.behind.firewall.com"
-  }
-]
+{
+  "DEFAULT_TIMEOUT": 5,
+  "TUNNELS": [
+    {
+      "PORT": 13389,
+      "LABEL": "RDP to windows laptop (using password/otpcode from keychain)",
+      "TYPE": "local",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp -p keychain_password -o keychain_otp_code",
+      "COMMAND": "sshbridge 13389 machine.to.bridge.firewall.com windows.machine.behind.firewall.com 3389"
+    },
+    {
+      "PORT": 13399,
+      "LABEL": "RDP to windows laptop using dialogs (default for expect_passwd_and_otp)",
+      "TYPE": "local",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp",
+      "COMMAND": "sshbridge 13399 machine.to.bridge.firewall.com windows.machine.behind.firewall.com 3389",
+      "TIMEOUT": 30
+    },
+    {
+      "PORT": 12345,
+      "LABEL": "Service running in docker on localhost:1080 on machine.behind.firewall.com",
+      "TYPE": "local",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
+      "COMMAND": "sshtunnel  12345 machine.to.bridge.firewall.com machine.behind.firewall.com  1080  "
+    },
+    {
+      "PORT": 22222,
+      "LABEL": "config entry X from ~/.ssh/config",
+      "TYPE": "local",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
+      "COMMAND": "ssh X"
+    },
+    {
+      "PORT": 1080,
+      "LABEL": "machine.to.bridge.firewall.com",
+      "TYPE": "dynamic",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
+      "COMMAND": "ssh -N -D 1080  henk@machine.to.bridge.firewall.com"
+    },
+    {
+      "PORT": 1081,
+      "LABEL": "machine.behind.firewall.com",
+      "TYPE": "dynamic",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp  -p keychain_password -o keychain_otp_code",
+      "COMMAND": "ssh -N -D 1081   -J henk@machine.to.bridge.firewall.com  henk@machine.behind.firewall.com"
+    }
+  ]
+}
