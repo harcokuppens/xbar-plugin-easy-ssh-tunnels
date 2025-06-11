@@ -42,8 +42,8 @@ file, and monitor or control them directly from your menu bar.
 - **2FA/OTP and password support**: Dialogs prompt only when needed, or use secrets
   from the macOS Keychain.
 - **Flexible configuration**: Add or edit tunnels in `tunnels.json`.
-- **Detailed logging**: All actions and errors are logged to `log.txt`, accessible
-  from the menu.
+- **Detailed logging**: All actions and errors are logged to `easy-ssh-tunnels.log`,
+  accessible from the menu.
 - **Customizable authentication**: Use dialog prompts, or scripts to fetch
   credentials from the Keychain.
 - **Logical SSH command syntax**: Uses `sshtunnel` and `sshbridge` for clear,
@@ -277,7 +277,7 @@ means wait forever until the ssh command itself exits.
   wrong.
 
 If a tunnel fails to start within the specified timeout, it will be marked as failed
-and the error will be logged in `log.txt`.
+and the error will be logged in `easy-ssh-tunnels.log`.
 
 ---
 
@@ -295,7 +295,7 @@ and the error will be logged in `log.txt`.
   - If authentication is needed, dialogs will appear (unless using keychain scripts).
 
 - **View Logs:**  
-  The menu provides a shortcut to open `log.txt` for troubleshooting.
+  The menu provides a shortcut to open `easy-ssh-tunnels.log` for troubleshooting.
 
 - **Edit Configuration:**  
   The menu also lets you open `tunnels.json` for quick editing.
@@ -318,7 +318,7 @@ You can create your own scripts for password or OTP retrieval and specify them i
 - The plugin reads `tunnels.json` and builds the menu dynamically.
 - When you start a tunnel, it uses the specified wrapper to handle authentication.
 - Tunnels are started in the background and monitored for status.
-- All output and errors are logged to `log.txt`.
+- All output and errors are logged to `easy-ssh-tunnels.log`.
 - The menu updates automatically as tunnels start/stop.
 
 ---
@@ -340,7 +340,7 @@ You can create your own scripts for password or OTP retrieval and specify them i
   brew install jq gawk oath-toolkit
   ```
 
-- Check `log.txt` for errors.
+- Check `easy-ssh-tunnels.log` for errors.
 - If tunnels do not start, verify your SSH config and credentials.
 
 ---
