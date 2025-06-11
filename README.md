@@ -157,10 +157,18 @@ Each entry specifies:
     },
     {
       "PORT": 1080,
-      "LABEL": "SOCKS Proxy via jumphost",
+      "LABEL": "SOCKS Proxy via bridge.example.com",
       "TYPE": "dynamic",
       "EXPECT_WRAPPERS": "expect_passwd_and_otp",
-      "COMMAND": "ssh -N -D 1080 user@jumphost.example.com"
+      "COMMAND": "ssh -N -D 1080 user@bridge.example.com"
+    },
+    {
+      "PORT": 12345,
+      "LABEL": "SSH tunnel MyTunnel configured in ~/.ssh/config",
+      "TYPE": "local",
+      "EXPECT_WRAPPERS": "expect_passwd_and_otp -p keychain_password -o keychain_otp_code",
+      "COMMAND": "ssh MyTunnel",
+      "TIMEOUT": 5
     }
   ]
 }
@@ -169,8 +177,26 @@ Each entry specifies:
 Note that for proxies we use the standard **ssh** command, because for proxies its
 command syntax is fine.
 
-We can also uses as `COMMAND` something like `ssh X` where `X` is a preset
-configuration in your `~/.ssh/config` configuration file.
+We can also uses as `COMMAND` something like `ssh MyTunnel` where `MyTunnel` is a
+preset configuration in your `~/.ssh/config` configuration file. Eg.
+
+```shell
+$ cat ~/.ssh/config
+Host MyTunnel
+    User henk
+    HostName windows.internal
+    Port 22
+    ProxyJump bridge.example.com:22
+    LocalForward localhost:12345 localhost:80
+    # the  -N option is done in the config with
+    SessionType none
+```
+
+The `SessionType none` should be added in your config, otherwise when closing the
+tunnel with this xbar plugin, which is done with a kill to the PID of ssh tunnel
+process, you will get an error dialog because the session exited suddenly. If there
+is only a tunnel without a session the tunnel will terminate without an error, and
+you won't get an error dialog.
 
 ### **3. Authentication Wrappers**
 
