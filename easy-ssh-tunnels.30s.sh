@@ -34,7 +34,7 @@ source "$SCRIPT_DIR/easy-ssh-tunnels/lib/load_tunnels_from_json.sh"
 
 # Define the path to your JSON file and log file
 TUNNELS_JSON_FILE="$SCRIPT_DIR/easy-ssh-tunnels/tunnels.json"
-TUNNELS_LOGFILE="$SCRIPT_DIR/easy-ssh-tunnels/log.txt"
+TUNNELS_LOGFILE="$SCRIPT_DIR/easy-ssh-tunnels/easy-ssh-tunnels.log"
 
 # Call the function to load the data
 if ! load_tunnels_from_json "$TUNNELS_JSON_FILE"; then

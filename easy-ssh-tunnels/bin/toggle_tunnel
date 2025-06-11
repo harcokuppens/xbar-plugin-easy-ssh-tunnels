@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 #  - homebrew bin folder, because we use some homebrew utilities like gawk, oathtool
 export PATH="$PATH:$SCRIPT_DIR:/opt/homebrew/bin"
 
-LOGFILE="$SCRIPT_DIR/../log.txt"
+LOGFILE="$SCRIPT_DIR/../easy-ssh-tunnels.log"
 
 wait_for_tunnel_started() {
     local port="$1"
@@ -100,7 +100,7 @@ toggle_tunnel() {
         #           Focus on capturing meaningful log content, using appropriate log levels,
         #           and ensuring that all relevant messages are present in your log files.
         # IMPORTANT: fflush() is used to ensure that the output is written immediately to the log file
-        FILTER='gawk "{ print strftime(\"%Y-%m-%d %H:%M:%S\"), \"tunnel_cmd: \", \$0; fflush() }"'
+        FILTER='gawk "{ print strftime(\"%Y-%m-%d %H:%M:%S\"), \":tunnel_cmd:\", \$0; fflush() }"'
 
         # if the command fails then we log the error and exit with an error code
         # note: we use PIPESTATUS[0] to get the exit code of the first command in the pipeline,
@@ -224,4 +224,4 @@ toggle_tunnel() {
 # - all output is send to logfile with datetime and either toggle_tunnel or tunnel_cmd prefix
 
 # internal wrapper to log output of toggle_tunnel function
-toggle_tunnel "$@" 2>&1 | gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), "toggle_tunnel: ", $0;  fflush() }' >>"$LOGFILE"
+toggle_tunnel "$@" 2>&1 | gawk '{ print strftime("%Y-%m-%d %H:%M:%S"), ":toggle_tunnel:", $0;  fflush() }' >>"$LOGFILE"
